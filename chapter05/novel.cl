@@ -6,7 +6,7 @@
                                 there is a giant welding torch in the corner.))))
 
 (defun describe-location (location nodes)
-       (cadr ( assoc location nodes)))
+       (cadr (assoc location nodes)))
 
 (defparameter *edges* '((living-room (garden west door)
                                      (attic upstairs ladder))
