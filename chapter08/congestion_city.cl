@@ -55,7 +55,7 @@
   (append (connect-with-bridges (find-islands nodes edge-list)) edge-list))
 
 (defun make-city-edges ()
-  (let* ((nodes (loop for i from i to *node-num*
+  (let* ((nodes (loop for i from 1 to *node-num*
                       collect i))
          (edge-list (connect-all-islands nodes (make-edge-list)))
          (cops (remove-if-not (lambda (x)
@@ -86,3 +86,47 @@
                                     edge)))
                             node1-edges))))
           edge-alist))
+
+(defun neighbors (node edge-alist)
+  (mapcar #'car (cdr (assoc node edge-alist))))
+
+(defun within-one (a b edge-alist)
+  (member b (neighbors a edge-alist)))
+
+(defun within-two (a b edge-alist)
+  (or (within-one a b edge-alist) 
+      (some (lambda (x) 
+              (within-one x b edge-alist))
+            (neighbors a edge-alist))))
+
+(defun make-city-nodes (edge-alist)
+  (let ((wumpus (random-node))
+        (glow-worms (loop for i below *worm-num*
+                          collect (random-node))))
+    (loop for n from 1 to *node-num*
+          collect (append (list n)
+                          (cond ((eql n wumpus) '(wumpus))
+                                ((within-two n wumpus edge-alist) '(blood!)))
+                          (cond ((member n glow-worms) '(glow-worms))
+                                ((some (lambda (worm)
+                                          (within-one n worm edge-alist))
+                                       glow-worms)
+                                '(lights!)))
+                          (when (some #'cdr (cdr (assoc n edge-alist)))
+                            '(sirens!))))))
+
+(defun new-game ()
+  (setf *congestion-city-edges* (make-city-edges))
+  (setf *congestion-city-nodes* (make-city-nodes *congestion-city-edges*))
+  (setf *player-pos* (find-empty-node))
+  (setf *visited-nodes* (list *player-pos*))
+  (draw-city))
+
+(defun find-empty-node ()
+  (let ((x (random-node)))
+    (if (cdr (assoc x *congestion-city-nodes*))
+        (find-empty-node)
+        x)))
+
+(defun draw-city ()
+  (ugraph->png "city" *congestion-city-nodes* *congestion-city-edges*))
