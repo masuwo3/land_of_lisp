@@ -1,6 +1,6 @@
 (defparameter *num-players* 2)
-(defparameter *max-dice* 2)
-(defparameter *board-size* 3)
+(defparameter *max-dice* 3)
+(defparameter *board-size* 2)
 (defparameter *board-hexnum* (* *board-size* *board-size*))
 
 (defun board-array (lst)
@@ -25,46 +25,43 @@
                                               (second hex))))))
 
 (defun game-tree (board player spare-dice first-move)
-  "Create game tree. Node contains player No and board. Edges are attacking or passing moves."
   (list player
         board
         (add-passing-move board
-                          player
-                          spare-dice
-                          first-move
+                          player 
+                          spare-dice 
+                          first-move 
                           (attacking-moves board player spare-dice))))
 
 (defun add-passing-move (board player spare-dice first-move moves)
-  "Add player's passing move to the list of attacking moves."
   (if first-move
       moves
       (cons (list nil
                   (game-tree (add-new-dice board player (1- spare-dice))
                              (mod (1+ player) *num-players*)
-                             0
-                             t))
+                             0 
+                             t)) 
             moves)))
 
 (defun attacking-moves (board cur-player spare-dice)
   (labels ((player (pos)
-                   (car (aref board pos)))
+             (car (aref board pos)))
            (dice (pos)
-                 (cadr (aref board pos))))
-          (mapcan (lambda (src)
-                    (when (eq (player src) cur-player)
-                      (mapcan (lambda (dst)
-                                (when (and (not (eq (player dst) cur-player))
-                                           (> (dice src) (dice dst)))
-                                  (list
-                                    (list (list src dst)
-                                          (game-tree (board-attack board cur-player
-                                                                   src dst (dice src))
-                                                      cur-player
-                                                      (+ spare-dice (dice dst))
-                                                      nil)))))
-                              (neighbors src))))
-                  (loop for n below *board-hexnum*
-                        collect n))))
+             (cadr (aref board pos))))
+    (mapcan (lambda (src)
+              (when (eq (player src) cur-player)
+                (mapcan (lambda (dst)
+                          (when (and (not (eq (player dst) cur-player))
+                                (> (dice src) (dice dst)))
+                          (list 
+     (list (list src dst)
+           (game-tree (board-attack board cur-player src dst (dice src))
+                      cur-player 
+                      (+ spare-dice (dice dst))
+                      nil)))))
+                        (neighbors src))))
+            (loop for n below *board-hexnum*
+                  collect n))))
 
 (defun neighbors (pos)
   (let ((up (- pos *board-size*))
@@ -86,21 +83,21 @@
 
 (defun add-new-dice (board player spare-dice)
   (labels ((f (lst n)
-              (cond ((null lst) nil)
-                    ((zerop n) lst)
-                    (t (let ((cur-player (caar lst))
-                             (cur-dice (cadar lst)))
-                         (if (and (eq cur-player player) (< cur-dice *max-dice*))
-                             (cons (list cur-player (1+ cur-dice))
-                                   (f (cdr lst) (1- n)))
-                             (cons (car lst) (f (cdr lst) n))))))))
-          (board-array (f (coerce board 'list) spare-dice))))
+             (cond ((null lst) nil)
+                   ((zerop n) lst)
+               (t (let ((cur-player (caar lst))
+                        (cur-dice (cadar lst)))
+                    (if (and (eq cur-player player) (< cur-dice *max-dice*))
+                        (cons (list cur-player (1+ cur-dice)) 
+                              (f (cdr lst) (1- n)))
+                        (cons (car lst) (f (cdr lst) n))))))))
+    (board-array (f (coerce board 'list) spare-dice))))
 
 (defun play-vs-human (tree)
   (print-info tree)
   (if (caddr tree)
       (play-vs-human (handle-human tree))
-      (announce-winner (cadr tree))))
+    (announce-winner (cadr tree))))
 
 (defun print-info (tree)
   (fresh-line)
@@ -138,36 +135,50 @@
   (fresh-line)
   (let ((w (winners board)))
     (if (> (length w) 1)
-        (format t "The game is a tie between ~a" (mapcar #'player-letter w))
-        (format t "The winner is ~a" (player-letter (car w))))))
+      (format t "The game is a tie between ~a" (mapcar #'player-letter w))
+      (format t "The winner is ~a" (player-letter (car w))))))
+
+;To play against a human:
+;
+;(play-vs-human (game-tree (gen-board) 0 0 t))
+
+;The code below adds the AI player
 
 (defun rate-position (tree player)
   (let ((moves (caddr tree)))
     (if moves
-        (apply (if (eq (car tree) player)
-                   #'max
-                   #'min)
-               (get-ratings tree player))
-        (let ((w (winners (cadr tree))))
-          (if (member player w)
-              (/ 1 (length w))
-              0)))))
+      (apply (if (eq (car tree) player)
+               #'max
+             #'min)
+             (get-ratings tree player))
+      (let ((w (winners (cadr tree))))
+      (if (member player w)
+          (/ 1 (length w))
+        0)))))
 
 (defun get-ratings (tree player)
   (mapcar (lambda (move)
-            (rate-position (cadr move) player))
-          (caddr tree)))
+          (rate-position (cadr move) player))
+        (caddr tree)))
 
 (defun handle-computer (tree)
   (let ((ratings (get-ratings tree (car tree))))
     (cadr (nth (position (apply #'max ratings) ratings) (caddr tree)))))
 
-
 (defun play-vs-computer (tree)
   (print-info tree)
   (cond ((null (caddr tree)) (announce-winner (cadr tree)))
-        ((zerop (car tree)) (play-vs-computer (handle-human tree)))
-        (t (play-vs-computer (handle-computer tree)))))
+      ((zerop (car tree)) (play-vs-computer (handle-human tree)))
+      (t (play-vs-computer (handle-computer tree)))))
+
+;To play against the computer:
+;
+;(play-vs-computer (game-tree (gen-board) 0 0 t))
+
+;The code below optimizes the game and allows play on a 3x3 board
+
+(defparameter *board-size* 3)
+(defparameter *board-hexnum* (* *board-size* *board-size*))
 
 (let ((old-neighbors (symbol-function 'neighbors))
       (previous (make-hash-table)))
@@ -179,7 +190,7 @@
       (previous (make-hash-table :test #'equalp)))
   (defun game-tree (&rest rest)
     (or (gethash rest previous)
-        (setf (gethash rest previous) (apply old-game-tree rest)))))
+      (setf (gethash rest previous) (apply old-game-tree rest)))))
 
 (let ((old-rate-position (symbol-function 'rate-position))
       (previous (make-hash-table)))
@@ -191,28 +202,16 @@
           (setf (gethash tree tab)
                 (funcall old-rate-position tree player))))))
 
-(defun my-length (lst)
-  (if lst
-      (1+ (my-length (cdr lst)))
-      0))
-
-(defun my-length (lst)
-  (labels ((f (lst acc)
-              (if lst
-                  (f (cdr lst)  (1+ acc))
-                  acc)))
-           (f lst 0)))
-
 (defun add-new-dice (board player spare-dice)
   (labels ((f (lst n acc)
-              (cond ((zerop n) (append (reverse acc) lst))
-                    ((null lst) (reverse acc))
-                    (t (let ((cur-player (caar lst))
-                             (cur-dice (cadar lst)))
-                         (if (and (eq cur-player player)
-                                  (< cur-dice *max-dice*))
-                             (f (cdr lst)
-                                (1- n)
-                                (cons (list cur-player (1+ cur-dice)) acc))
-                             (f (cdr lst) n (cons (car lst) acc))))))))
-          (board-array (f (coerce board 'list) spare-dice ()))))
+             (cond ((zerop n) (append (reverse acc) lst))
+                   ((null lst) (reverse acc))
+                   (t (let ((cur-player (caar lst))
+                            (cur-dice (cadar lst)))
+                        (if (and (eq cur-player player)
+                                 (< cur-dice *max-dice*))
+                            (f (cdr lst) 
+                               (1- n)
+                               (cons (list cur-player (1+ cur-dice)) acc))
+                          (f (cdr lst) n (cons (car lst) acc))))))))
+    (board-array (f (coerce board 'list) spare-dice ()))))
